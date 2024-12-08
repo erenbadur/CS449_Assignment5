@@ -152,6 +152,8 @@ if (hasGetUserMedia()) {
     console.warn("getUserMedia() is not supported by your browser");
 }
 
+
+
 // Enable the live webcam view and start detection.
 function enableCam(event) {
     if (!gestureRecognizer) {
@@ -177,6 +179,32 @@ function enableCam(event) {
         video.srcObject = stream;
         video.addEventListener("loadeddata", predictWebcam);
     });
+}
+
+// Update the position of the virtual cursor
+function moveVirtualCursor(indexTip) {
+    const cursor = document.getElementById("virtualCursor");
+    const cursorX = (1 - indexTip.x) * window.innerWidth;
+    const cursorY = indexTip.y * window.innerHeight;
+
+    cursor.style.left = `${cursorX}px`;
+    cursor.style.top = `${cursorY}px`;
+}
+
+
+// Simulate a click event
+function simulateClick(x, y) {
+    const element = document.elementFromPoint(x, y);
+    if (element) {
+        const event = new MouseEvent("click", {
+            view: window,
+            bubbles: true,
+            cancelable: true,
+            clientX: x,
+            clientY: y,
+        });
+        element.dispatchEvent(event);
+    }
 }
 
 let lastVideoTime = -1;
@@ -239,9 +267,13 @@ async function predictWebcam() {
 
             const isIndexRaised = indexTip.y < indexBase.y;
             const isMiddleRaised = middleTip.y < middleBase.y;
-            const isRingDown = ringTip.y >= ringBase.y; // Ring should not be raised
-            const isPinkyDown = pinkyTip.y >= pinkyBase.y; // Pinky should not be raised
-            const isThumbDown = thumbTip.y >= thumbBase.y; // Pinky should not be raised
+            const isRingDown = ringTip.y >= ringBase.y;
+            const isPinkyDown = pinkyTip.y >= pinkyBase.y;
+            const isThumbDown = thumbTip.y >= thumbBase.y;
+            const isThumbUp = thumbTip.y < thumbBase.y;
+            const isMiddleDown = middleTip.y >= middleBase.y;
+
+
 
             function calculateDistance(landmark1, landmark2) {
             return Math.sqrt(
@@ -250,10 +282,26 @@ async function predictWebcam() {
               );
             }
 
+            // Detect Cursor Gesture (thumb and index up, others down)
+            if (isThumbUp && isIndexRaised && isMiddleDown && isRingDown && isPinkyDown) {
+                results.gestures[0][0].categoryName = "cursor";
+                moveVirtualCursor(indexTip);
+            }
 
-            if (calculateDistance(thumbTip, middleTip) < 0.04) {
-                // added "pinch" hand gesture to be recognized
-                results.gestures[0][0].categoryName = "pinch";
+
+            // Detect Pinch Gesture for Clicking
+            const thumbIndexDistance = calculateDistance(thumbTip, indexTip);
+            if (thumbIndexDistance  < 0.04 && isThumbUp && isIndexRaised && isMiddleDown && isRingDown && isPinkyDown) {
+                results.gestures[0][0].categoryName = "click";
+                // Use the virtual cursor's position for the click
+                const cursorElement = document.getElementById("virtualCursor");
+                const cursorRect = cursorElement.getBoundingClientRect();
+                const clickTarget = document.elementFromPoint(cursorRect.left + cursorRect.width / 2, cursorRect.top + cursorRect.height / 2);
+
+                if (clickTarget) {
+                    clickTarget.click();
+                    console.log(`Clicked on element:`, clickTarget);
+                }
 
             }
 
@@ -314,7 +362,6 @@ async function predictWebcam() {
 
             }
 
-
         }
     }
     canvasCtx.restore();
@@ -335,3 +382,9 @@ async function predictWebcam() {
         window.requestAnimationFrame(predictWebcam);
     }
 }
+
+
+document.getElementById("customButton").addEventListener("click", () => {
+    document.body.style.backgroundColor = "pink";
+
+});
